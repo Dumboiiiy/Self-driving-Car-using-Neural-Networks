@@ -1,53 +1,82 @@
 #include <iostream>
 #include "raylib.h"
 #include "include/Car.hpp"
+#include "include/Road.hpp"
 
 int main() {
-    const int screenWidth = 800;
-    const int screenHeight = 600;
+    // Large, spacious window with title bar and standard minimize/close buttons
+    const int screenWidth = 1280;
+    const int screenHeight = 850;
 
-    InitWindow(screenWidth, screenHeight, "Self-Driving Car Simulation");
+    InitWindow(screenWidth, screenHeight, "Self-Driving Car Simulation - Step 02: Defining Road");
     SetTargetFPS(60);
 
-    // Initialize car at the center of the screen
-    Car car(screenWidth / 2.0f, screenHeight / 2.0f, 30.0f, 50.0f);
+    // Place the road on the left side to reserve the right side for the Neural Network visualizer
+    const float roadCenterX = 280.0f;
+    const float roadWidth = 240.0f;
+    Road road(roadCenterX, roadWidth, 3);
+
+    // Initialize car in the middle lane (lane index 1) at y = 100
+    Car car(road.GetLaneCenter(1), 100.0f, 30.0f, 50.0f);
+
+    // Setup 2D camera focused on the road column, keeping car at 70% of screen height
+    Camera2D camera = { 0 };
+    camera.target = Vector2{ road.x, car.y };
+    camera.offset = Vector2{ road.x, screenHeight * 0.7f };
+    camera.rotation = 0.0f;
+    camera.zoom = 1.0f;
 
     while (!WindowShouldClose()) {
-        // Update car physics and controls
+        // Update car physics and steering
         car.Update();
+
+        // Follow car vertically along the road
+        camera.target.y = car.y;
 
         // Reset car position if 'R' is pressed
         if (IsKeyPressed(KEY_R)) {
-            car.Reset(screenWidth / 2.0f, screenHeight / 2.0f);
+            car.Reset(road.GetLaneCenter(1), 100.0f);
         }
 
-        // Draw
+        // Render Frame
         BeginDrawing();
-        ClearBackground(LIGHTGRAY);
+        ClearBackground(Color{ 30, 30, 30, 255 }); // Environment terrain background
 
-        // Draw a subtle grid background for motion reference
-        const int gridSize = 40;
-        for (int x = 0; x < screenWidth; x += gridSize) {
-            DrawLine(x, 0, x, screenHeight, Fade(GRAY, 0.3f));
+        // World-space rendering (Road and Car viewport)
+        BeginMode2D(camera);
+        {
+            road.Draw(car.y, static_cast<float>(screenHeight));
+            car.Draw();
         }
-        for (int y = 0; y < screenHeight; y += gridSize) {
-            DrawLine(0, y, screenWidth, y, Fade(GRAY, 0.3f));
-        }
+        EndMode2D();
 
-        // Render the car
-        car.Draw();
+        // -------------------------------------------------------------
+        // Right Side: Neural Network & Telemetry Dashboard Area
+        // -------------------------------------------------------------
+        const int panelX = 560;
+        const int panelWidth = screenWidth - panelX - 20;
 
-        // Render HUD / Telemetry info
-        DrawRectangle(10, 10, 240, 110, Fade(DARKGRAY, 0.8f));
-        DrawRectangleLines(10, 10, 240, 110, BLACK);
-        DrawFPS(20, 20);
-        DrawText(TextFormat("Speed: %.2f / %.2f", car.speed, car.maxSpeed), 20, 45, 16, RAYWHITE);
-        DrawText(TextFormat("Angle: %.2f rad (%.1f deg)", car.angle, car.angle * RAD2DEG), 20, 65, 16, RAYWHITE);
-        DrawText(TextFormat("Pos: (%.1f, %.1f)", car.x, car.y), 20, 85, 16, RAYWHITE);
+        // Dashboard background container
+        DrawRectangle(panelX, 20, panelWidth, screenHeight - 80, Fade(DARKGRAY, 0.4f));
+        DrawRectangleLines(panelX, 20, panelWidth, screenHeight - 80, Fade(GRAY, 0.6f));
 
-        // Render controls guide at the bottom
-        DrawRectangle(10, screenHeight - 40, screenWidth - 20, 30, Fade(DARKGRAY, 0.8f));
-        DrawText("Controls: [Arrow Keys] or [W/A/S/D] to Drive | [R] to Reset Position", 20, screenHeight - 33, 16, RAYWHITE);
+        // Telemetry section
+        DrawText("TELEMETRY & SENSORS", panelX + 20, 40, 20, YELLOW);
+        DrawFPS(panelX + 20, 75);
+        DrawText(TextFormat("Speed:    %.2f / %.2f", car.speed, car.maxSpeed), panelX + 20, 105, 18, RAYWHITE);
+        DrawText(TextFormat("Angle:    %.2f rad (%.1f deg)", car.angle, car.angle * RAD2DEG), panelX + 20, 135, 18, RAYWHITE);
+        DrawText(TextFormat("Position: (X: %.1f, Y: %.1f)", car.x, car.y), panelX + 20, 165, 18, RAYWHITE);
+        DrawText(TextFormat("Lanes:    %d (Width: %.0fpx)", road.laneCount, road.width), panelX + 20, 195, 18, RAYWHITE);
+
+        // Neural Network placeholder section
+        DrawRectangle(panelX + 20, 240, panelWidth - 40, screenHeight - 340, Fade(BLACK, 0.5f));
+        DrawRectangleLines(panelX + 20, 240, panelWidth - 40, screenHeight - 340, Fade(DARKGRAY, 0.8f));
+        DrawText("NEURAL NETWORK VISUALIZER", panelX + 40, 260, 18, SKYBLUE);
+        DrawText("(Reserved for Brain / Neural Network Nodes)", panelX + 40, 290, 14, GRAY);
+
+        // Bottom control helper
+        DrawRectangle(10, screenHeight - 45, screenWidth - 20, 32, Fade(DARKGRAY, 0.85f));
+        DrawText("Controls: [Arrow Keys / WASD] Drive | [R] Reset Position | [Esc] Exit", 20, screenHeight - 38, 16, RAYWHITE);
 
         EndDrawing();
     }
